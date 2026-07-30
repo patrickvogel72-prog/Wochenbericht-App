@@ -1,0 +1,1123 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a1930">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Wochenbericht">
+<meta name="description" content="Google-Timeline-Export in einen fertigen Wochenbericht als PDF umwandeln">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<title>Wochenbericht Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  :root{
+    --navy:#0a1930;
+    --navy-2:#0f2244;
+    --blue-line:#3d6fb0;
+    --blue-line-dim:#26497a;
+    --cyan:#7ec8e3;
+    --paper:#eef3fa;
+    --amber:#e0a640;
+    --red:#d3654a;
+    --green:#5fae7a;
+    --grid:#1c3a63;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Courier New',Consolas,monospace;
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/28px 28px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/28px 28px,
+      var(--navy);
+    color:var(--paper);
+    min-height:100vh;
+    padding:24px;
+  }
+  @media (max-width: 600px){
+    body{padding:12px;}
+    .row{gap:10px;}
+  }
+  .wrap{max-width:1180px;margin:0 auto;}
+  header{
+    border:1px solid var(--blue-line-dim);
+    border-left:4px solid var(--cyan);
+    padding:16px 20px;
+    margin-bottom:18px;
+    background:rgba(15,34,68,0.5);
+  }
+  header .eyebrow{
+    font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--cyan); margin-bottom:4px;
+  }
+  header h1{margin:0; font-size:22px; font-weight:700; letter-spacing:.02em;}
+  header p{margin:6px 0 0; font-size:12.5px; color:#9fb4d6; max-width:760px; line-height:1.5;}
+
+  .panel{
+    border:1px solid var(--blue-line-dim);
+    background:rgba(15,34,68,0.4);
+    padding:16px 18px;
+    margin-bottom:16px;
+  }
+  .panel h2{
+    font-size:12px; text-transform:uppercase; letter-spacing:.14em;
+    color:var(--cyan); margin:0 0 12px; border-bottom:1px dashed var(--blue-line-dim);
+    padding-bottom:8px;
+  }
+  .row{display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end;}
+  .field{display:flex; flex-direction:column; gap:5px;}
+  .field label{font-size:10.5px; text-transform:uppercase; letter-spacing:.08em; color:#8fa8cf;}
+  input[type=text], input[type=number]{
+    background:#08152c; border:1px solid var(--blue-line); color:var(--paper);
+    padding:7px 9px; font-family:inherit; font-size:13px; min-width:90px;
+  }
+  input[type=file]{color:#9fb4d6; font-size:12px;}
+  button{
+    font-family:inherit; font-size:12px; letter-spacing:.04em; text-transform:uppercase;
+    background:#12294f; color:var(--paper); border:1px solid var(--blue-line);
+    padding:9px 14px; cursor:pointer;
+  }
+  button:hover{background:#1a3866;}
+  button.primary{background:var(--cyan); color:#08152c; border-color:var(--cyan); font-weight:700;}
+  button.primary:hover{background:#9adcf5;}
+  button.ghost{background:transparent;}
+  button.small{padding:5px 9px; font-size:11px;}
+  button:disabled{opacity:.35; cursor:not-allowed;}
+
+  .toggle-group{display:inline-flex; border:1px solid var(--blue-line);}
+  .toggle-group button{border:none; border-right:1px solid var(--blue-line); background:#08152c;}
+  .toggle-group button:last-child{border-right:none;}
+  .toggle-group button.active{background:var(--cyan); color:#08152c; font-weight:700;}
+
+  .week-nav{display:flex; align-items:center; gap:12px;}
+  .week-nav .kw-display{font-size:16px; font-weight:700; letter-spacing:.03em; min-width:150px; text-align:center;}
+  .week-nav .kw-range{display:block; font-size:10.5px; color:#8fa8cf; font-weight:400; letter-spacing:0;}
+
+  .dropzone{
+    border:1.5px dashed var(--blue-line); padding:22px; text-align:center;
+    font-size:12.5px; color:#9fb4d6; cursor:pointer;
+  }
+  .dropzone.drag{background:rgba(126,200,227,0.08); border-color:var(--cyan);}
+  .status-line{font-size:11.5px; color:var(--cyan); margin-top:8px;}
+
+  .table-scroll{overflow-x:auto; -webkit-overflow-scrolling:touch;}
+  table.preview{width:100%; min-width:640px; border-collapse:collapse; font-size:12px;}
+  table.preview th{
+    text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.06em;
+    color:var(--cyan); border-bottom:1px solid var(--blue-line); padding:7px 8px;
+    white-space:nowrap;
+  }
+  table.preview td{border-bottom:1px solid var(--grid); padding:6px 8px; vertical-align:top;}
+  table.preview tr.holiday td{color:var(--amber);}
+  table.preview tr.vacation td{color:var(--green);}
+  table.preview input[type=text]{width:100%; min-width:60px; padding:5px 6px; font-size:12px;}
+  table.preview td.narrow{width:70px;}
+  table.preview td.check{width:60px; text-align:center;}
+  table.preview .tag{
+    display:inline-block; font-size:10px; text-transform:uppercase; letter-spacing:.05em;
+    padding:2px 6px; border:1px solid currentColor;
+  }
+  .ort-chips{display:flex; flex-wrap:wrap; gap:5px; margin-bottom:5px;}
+  .ort-chip{
+    display:inline-flex; align-items:center; gap:6px;
+    background:#0d2140; border:1px solid var(--blue-line-dim);
+    padding:3px 4px 3px 8px; font-size:10.5px; color:#bcd1ef;
+  }
+  .ort-chip .hint{margin:0; padding:0; font-size:9px; color:#6f8bb8; text-transform:uppercase;}
+  .ort-chip button{
+    padding:2px 6px; font-size:9px; background:#2a1420; border-color:#7a3a4a; color:#e08a9a;
+  }
+  .ort-chip button:hover{background:#3a1a28;}
+  .excluded-panel{margin-top:10px; font-size:11px;}
+  .excluded-panel .chip{
+    display:inline-flex; align-items:center; gap:6px; margin:3px 6px 3px 0;
+    background:#0d2140; border:1px solid var(--blue-line-dim); padding:3px 4px 3px 8px; color:#8fa8cf;
+  }
+  .excluded-panel .chip button{padding:2px 6px; font-size:9px;}
+  .excluded-panel summary{cursor:pointer; color:var(--cyan); font-size:11px; text-transform:uppercase; letter-spacing:.06em;}
+  .hint{font-size:11px; color:#8fa8cf; margin-top:10px; line-height:1.6;}
+  .hint b{color:var(--paper);}
+  footer{text-align:center; font-size:11px; color:#5c76a0; margin-top:10px;}
+  .actions-row{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-top:14px;}
+  .filtered-note{font-size:11px; color:#8fa8cf;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Standortdaten &rarr; Wochenbericht</div>
+    <h1>Wochenbericht Generator</h1>
+    <p>Google-Timeline-Export hochladen, Woche wählen, prüfen und als PDF im Original-Formular-Layout exportieren.
+    Feiertage und Urlaubstage werden automatisch erkannt bzw. lassen sich markieren.</p>
+  </header>
+
+  <div class="panel">
+    <h2>1 · Standortdaten importieren</h2>
+    <div class="dropzone" id="dropzone">
+      <div>JSON-Datei hierher ziehen oder klicken zum Auswählen</div>
+      <div style="margin-top:6px; font-size:11px;">Google Maps App &rarr; Timeline &rarr; Einstellungen &rarr; Standortverlauf exportieren</div>
+      <input type="file" id="fileInput" accept="application/json" style="display:none;">
+    </div>
+    <div class="status-line" id="importStatus"></div>
+  </div>
+
+  <div class="panel">
+    <h2>2 · Berichtseinstellungen</h2>
+    <div class="row">
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="nameField" placeholder="Vor- und Nachname">
+      </div>
+      <div class="field">
+        <label>von (Kalenderwoche Mo&ndash;So)</label>
+        <input type="text" id="vonField" readonly style="opacity:.75; cursor:default;">
+      </div>
+      <div class="field">
+        <label>Seite</label>
+        <input type="number" id="seiteField" value="1" style="width:60px;">
+      </div>
+      <div class="field">
+        <label>Arbeitswoche</label>
+        <div class="toggle-group">
+          <button id="btnMoFr" class="active" data-days="5">Mo&ndash;Fr</button>
+          <button id="btnMoDo" data-days="4">Mo&ndash;Do</button>
+        </div>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px;">
+      <div class="field">
+        <label>Kalenderwoche</label>
+        <div class="week-nav">
+          <button id="prevWeek" class="small">&larr;</button>
+          <div class="kw-display" id="kwDisplay">KW 01 / 2026<span class="kw-range" id="kwRange"></span></div>
+          <button id="nextWeek" class="small">&rarr;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>3 · Vorschau &amp; Bearbeitung</h2>
+    <div class="table-scroll">
+    <table class="preview" id="previewTable">
+      <thead>
+        <tr>
+          <th>Datum</th>
+          <th class="narrow">A-Beginn</th>
+          <th class="narrow">A-Ende</th>
+          <th class="narrow">Pausen</th>
+          <th>Ort</th>
+          <th class="check">Urlaub</th>
+        </tr>
+      </thead>
+      <tbody id="previewBody"></tbody>
+    </table>
+    </div>
+    <div class="status-line" id="geocodeStatus" style="display:none;"></div>
+    <div class="hint">
+      Pro Standort steht eine eigene Zeile. Die erste Zeile eines Tages beginnt immer mit <b>07:00</b>
+      und hat kein A-Ende. Weitere Ankunftszeiten werden auf 15 Minuten gerundet, Abfahrtszeiten (A-Ende)
+      immer auf die nächsten 15 Minuten <b>aufgerundet</b>. Adressen werden ab 07:00 erfasst, solange bis der
+      als <b>Zuhause</b> erkannte Aufenthalt beginnt — auch wenn das erst nach 16:30 passiert. Die letzte Zeile
+      des Tages zeigt frühestens <b>16:30</b> als A-Ende. Die Mittagspause <b>12-12:30</b> wird automatisch nur
+      in der ersten Zeile jedes Tages eingetragen, alles ist editierbar. Von Google automatisch als Zuhause
+      erkannte Aufenthalte werden immer herausgefiltert, die Werkstatt-Adresse wird automatisch als „Werkstatt“
+      beschriftet. Da Google im Export keine Adresstexte mehr liefert, werden Koordinaten automatisch einmalig
+      über OpenStreetMap in echte Adressen umgewandelt und dauerhaft gespeichert. Mit „Ausschließen“ neben einem
+      Ort blendest du ihn dauerhaft für alle Wochen aus. Feiertage werden automatisch als <b>Feiertag</b>
+      eingetragen, über die Checkbox „Urlaub“ lässt sich ein Tag als <b>Urlaubstag</b> markieren. Jede PDF-Seite
+      hat immer genau 18 Zeilen inkl. Kopfzeile; bei mehr Einträgen wird automatisch eine weitere Seite mit
+      vollständigem Kopf (Name, KW, Seite) erzeugt.
+    </div>
+    <details class="excluded-panel" id="excludedPanel">
+      <summary>Ausgeschlossene Orte verwalten</summary>
+      <div id="excludedList" style="margin-top:8px;"></div>
+    </details>
+    <div class="actions-row">
+      <div class="filtered-note" id="filteredNote"></div>
+      <div style="display:flex; gap:10px;">
+        <button class="ghost small" id="resetWeekBtn" type="button">Bearbeitungen dieser Woche zurücksetzen</button>
+        <button class="primary" id="exportBtn">PDF exportieren</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>Alle Daten bleiben lokal im Browser gespeichert &middot; keine Cloud, kein Server<br>Adress-Nachschau: &copy; OpenStreetMap-Mitwirkende</footer>
+</div>
+
+<script>
+
+/* ---------------------------------------------------------------
+   Konstanten
+--------------------------------------------------------------- */
+const STORAGE_VISITS    = 'wb_visits_v2';
+const STORAGE_OVERRIDES = 'wb_overrides_v2';
+const STORAGE_ROW_OVERRIDES = 'wb_row_overrides_v1';
+const STORAGE_SETTINGS  = 'wb_settings_v2';
+const STORAGE_EXCLUDED  = 'wb_excluded_places_v2';
+const STORAGE_GEOCODE   = 'wb_geocode_cache_v1';
+const TOTAL_ROWS_TARGET = 17; // Datenzeilen (ohne Header) — PDF hat immer exakt 18 Zeilen inkl. Header
+
+// Adressen, die zusätzlich per Text-Abgleich gefiltert werden (falls ein Export
+// doch einmal Klartext-Adressen liefert, z.B. ältere Exportformate)
+const EXCLUDED_ADDRESSES = [
+  'andergasse 10, 1170 wien'
+];
+
+// Adressen, die im Ort-Feld durch einen festen Text ersetzt werden
+const ADDRESS_LABEL_OVERRIDES = [
+  { test: norm => norm.includes('glasauergasse') && norm.includes('1130'), label: 'Werkstatt' }
+];
+function applyAddressLabelOverride(label){
+  const norm = normalizeAddress(label);
+  for(const rule of ADDRESS_LABEL_OVERRIDES){
+    if(rule.test(norm)) return rule.label;
+  }
+  return label;
+}
+
+/* ---------------------------------------------------------------
+   State
+--------------------------------------------------------------- */
+let visits = loadJSON(STORAGE_VISITS, []);            // [{dateStr, start, end, address, lat, lng, placeId, semanticType, placeKey}]
+let overrides = loadJSON(STORAGE_OVERRIDES, {});       // { 'YYYY-MM-DD': {urlaub} }  (Tages-Ebene)
+let rowOverrides = loadJSON(STORAGE_ROW_OVERRIDES, {});// { 'YYYY-MM-DD|rowKey': {beginn,ende,pausen,ort} } (Standort-Ebene)
+let excludedPlaces = loadJSON(STORAGE_EXCLUDED, {});   // { placeKey: {label, addedAt} }
+let geocodeCache = loadJSON(STORAGE_GEOCODE, {});      // { placeKey: 'Straße 12, 1010 Wien' }
+let geocodeQueue = [];                                 // [{placeKey, lat, lng}]
+let geocodeInFlight = false;
+let settings = loadJSON(STORAGE_SETTINGS, {
+  name:'', von:'', seite:1, weekDays:5, kw:isoWeek(new Date()).week, year:isoWeek(new Date()).year
+});
+
+function loadJSON(key, fallback){
+  try{ const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; }
+  catch(e){ return fallback; }
+}
+function saveAll(){
+  localStorage.setItem(STORAGE_VISITS, JSON.stringify(visits));
+  localStorage.setItem(STORAGE_OVERRIDES, JSON.stringify(overrides));
+  localStorage.setItem(STORAGE_ROW_OVERRIDES, JSON.stringify(rowOverrides));
+  localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(settings));
+  localStorage.setItem(STORAGE_EXCLUDED, JSON.stringify(excludedPlaces));
+  localStorage.setItem(STORAGE_GEOCODE, JSON.stringify(geocodeCache));
+}
+
+/* ---------------------------------------------------------------
+   Datum / ISO-Woche / Feiertage
+--------------------------------------------------------------- */
+function isoWeek(date){
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayNum = (d.getUTCDay() + 6) % 7;
+  d.setUTCDate(d.getUTCDate() - dayNum + 3);
+  const firstThursday = new Date(Date.UTC(d.getUTCFullYear(),0,4));
+  const week = 1 + Math.round(((d - firstThursday) / 86400000 - 3 + ((firstThursday.getUTCDay()+6)%7)) / 7);
+  return { week, year: d.getUTCFullYear() };
+}
+function mondayOfIsoWeek(week, year){
+  const jan4 = new Date(Date.UTC(year,0,4));
+  const jan4Day = (jan4.getUTCDay()+6)%7;
+  const week1Monday = new Date(jan4); week1Monday.setUTCDate(jan4.getUTCDate() - jan4Day);
+  const result = new Date(week1Monday);
+  result.setUTCDate(week1Monday.getUTCDate() + (week-1)*7);
+  return result;
+}
+function addDays(d,n){ const r=new Date(d); r.setUTCDate(r.getUTCDate()+n); return r; }
+function fmtISO(d){ return d.toISOString().slice(0,10); }
+function fmtDE(d){
+  const wd = ['So','Mo','Di','Mi','Do','Fr','Sa'][d.getUTCDay()];
+  const dd = String(d.getUTCDate()).padStart(2,'0');
+  const mm = String(d.getUTCMonth()+1).padStart(2,'0');
+  return `${wd}, ${dd}.${mm}.`;
+}
+function fmtDateOnly(d){
+  const dd = String(d.getUTCDate()).padStart(2,'0');
+  const mm = String(d.getUTCMonth()+1).padStart(2,'0');
+  return `${dd}.${mm}.${d.getUTCFullYear()}`;
+}
+function fullWeekRangeLabel(){
+  const monday = mondayOfIsoWeek(settings.kw, settings.year);
+  const sunday = addDays(monday, 6);
+  return `${fmtDateOnly(monday)} - ${fmtDateOnly(sunday)}`;
+}
+
+function easterSunday(year){
+  const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,
+        f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,
+        i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+        month=Math.floor((h+l-7*m+114)/31), day=((h+l-7*m+114)%31)+1;
+  return new Date(Date.UTC(year, month-1, day));
+}
+const holidayCache = {};
+function austrianHolidays(year){
+  if(holidayCache[year]) return holidayCache[year];
+  const easter = easterSunday(year);
+  const list = {
+    'Neujahr': new Date(Date.UTC(year,0,1)),
+    'Heilige Drei Könige': new Date(Date.UTC(year,0,6)),
+    'Ostermontag': addDays(easter,1),
+    'Staatsfeiertag': new Date(Date.UTC(year,4,1)),
+    'Christi Himmelfahrt': addDays(easter,39),
+    'Pfingstmontag': addDays(easter,50),
+    'Fronleichnam': addDays(easter,60),
+    'Mariä Himmelfahrt': new Date(Date.UTC(year,7,15)),
+    'Nationalfeiertag': new Date(Date.UTC(year,9,26)),
+    'Allerheiligen': new Date(Date.UTC(year,10,1)),
+    'Mariä Empfängnis': new Date(Date.UTC(year,11,8)),
+    'Christtag': new Date(Date.UTC(year,11,25)),
+    'Stefanitag': new Date(Date.UTC(year,11,26)),
+  };
+  const map = {};
+  for(const [name,d] of Object.entries(list)) map[fmtISO(d)] = name;
+  holidayCache[year] = map;
+  return map;
+}
+function isHoliday(dateStr){
+  const year = parseInt(dateStr.slice(0,4),10);
+  const map = austrianHolidays(year);
+  return map[dateStr] || null;
+}
+
+/* ---------------------------------------------------------------
+   JSON-Import (Google Timeline: alt "timelineObjects" / neu "semanticSegments")
+   Hinweis: Der aktuelle Google-Export liefert KEINEN Adresstext mehr,
+   nur GPS-Koordinaten + eine automatische Kategorie (semanticType:
+   HOME / INFERRED_WORK / UNKNOWN / ...). Wir zeigen daher die
+   Koordinaten an (mit Kartenlink) statt der Kategorie.
+--------------------------------------------------------------- */
+function normalizeAddress(s){
+  return (s||'').toLowerCase().replace(/\s+/g,' ').replace(/[,.]/g,'').trim();
+}
+function isExcludedAddressText(addr){
+  const norm = normalizeAddress(addr).replace(/,/g,'');
+  if(!norm) return false;
+  return EXCLUDED_ADDRESSES.some(ex => {
+    const exNorm = ex.replace(/,/g,'');
+    return norm.includes(exNorm) || (exNorm.includes(norm) && norm.length>6);
+  });
+}
+function placeKeyFor(placeId, lat, lng, addressText){
+  if(placeId) return 'pid:'+placeId;
+  if(lat!=null && lng!=null) return 'geo:'+lat.toFixed(4)+','+lng.toFixed(4);
+  if(addressText) return 'addr:'+normalizeAddress(addressText);
+  return null;
+}
+
+function extractVisitsFromJSON(json){
+  const out = [];
+
+  if(Array.isArray(json.timelineObjects)){
+    for(const obj of json.timelineObjects){
+      const pv = obj.placeVisit;
+      if(!pv) continue;
+      const startMs = pv.duration && (pv.duration.startTimestamp || pv.duration.startTimestampMs);
+      const endMs   = pv.duration && (pv.duration.endTimestamp || pv.duration.endTimestampMs);
+      if(!startMs || !endMs) continue;
+      const start = new Date(startMs);
+      const end   = new Date(endMs);
+      let addressText = (pv.location && (pv.location.address || pv.location.name)) || '';
+      let lat=null,lng=null;
+      if(pv.location && pv.location.latitudeE7 != null){
+        lat = pv.location.latitudeE7/1e7; lng = pv.location.longitudeE7/1e7;
+      }
+      out.push(makeVisit(start,end,addressText,lat,lng,pv.location&&pv.location.placeId,null,null));
+    }
+  }
+
+  if(Array.isArray(json.semanticSegments)){
+    for(const seg of json.semanticSegments){
+      if(!seg.visit) continue;
+      if(!seg.startTime || !seg.endTime) continue;
+      const start = new Date(seg.startTime);
+      const end = new Date(seg.endTime);
+      const tc = seg.visit.topCandidate || {};
+      let addressText = (tc.placeLocation && tc.placeLocation.address) ? tc.placeLocation.address : '';
+      let lat=null,lng=null;
+      const geo = (tc.placeLocation && tc.placeLocation.latLng) || null;
+      if(geo){
+        const m = /(-?\d+\.\d+)°?,\s*(-?\d+\.\d+)°?/.exec(geo);
+        if(m){ lat=parseFloat(m[1]); lng=parseFloat(m[2]); }
+      }
+      out.push(makeVisit(start,end,addressText,lat,lng,tc.placeId,tc.semanticType,tc.probability));
+    }
+  }
+
+  return out;
+}
+function makeVisit(start,end,addressText,lat,lng,placeId,semanticType,probability){
+  const hasText = !!addressText;
+  const label = hasText ? addressText : (lat!=null && lng!=null ? `GPS: ${lat.toFixed(5)}, ${lng.toFixed(5)}` : 'Unbekannter Ort');
+  return {
+    dateStr: fmtISO(new Date(Date.UTC(start.getFullYear(),start.getMonth(),start.getDate()))),
+    start: start.toISOString(),
+    end: end.toISOString(),
+    address: label,
+    hasAddressText: hasText,
+    lat, lng, placeId: placeId||null,
+    semanticType: semanticType||null,
+    probability: (typeof probability === 'number') ? probability : null,
+    placeKey: placeKeyFor(placeId, lat, lng, hasText?addressText:null)
+  };
+}
+
+function visitDedupeKey(v){ return `${v.start}|${v.end}|${v.placeKey||normalizeAddress(v.address)}`; }
+
+function importVisits(newVisits){
+  const existingKeys = new Set(visits.map(visitDedupeKey));
+  let added = 0;
+  for(const v of newVisits){
+    const k = visitDedupeKey(v);
+    if(!existingKeys.has(k)){
+      visits.push(v);
+      existingKeys.add(k);
+      added++;
+    }
+  }
+  visits.sort((a,b)=> a.start.localeCompare(b.start));
+  saveAll();
+  return added;
+}
+
+/* ---------------------------------------------------------------
+   Ausschluss-Logik
+--------------------------------------------------------------- */
+// Google verwendet je nach Konfidenz "HOME" oder "INFERRED_HOME" für
+// Zuhause-Aufenthalte — beide müssen als Zuhause behandelt werden.
+function isHomeType(semanticType){
+  return semanticType === 'HOME' || semanticType === 'INFERRED_HOME';
+}
+function isExcludedVisit(v){
+  if(isHomeType(v.semanticType)) return true;
+  if(v.placeKey && excludedPlaces[v.placeKey]) return true;
+  if(v.hasAddressText && isExcludedAddressText(v.address)) return true;
+  return false;
+}
+function excludePlace(placeKey, label){
+  if(!placeKey) return;
+  excludedPlaces[placeKey] = { label, addedAt: new Date().toISOString() };
+  saveAll();
+}
+function reincludePlace(placeKey){
+  delete excludedPlaces[placeKey];
+  saveAll();
+}
+
+/* ---------------------------------------------------------------
+   Automatische Adress-Nachschau (Reverse-Geocoding via OpenStreetMap
+   Nominatim). Google liefert im Export nur GPS-Koordinaten, keine
+   Adresstexte mehr. Jede Koordinate wird EINMALIG nachgeschlagen und
+   dauerhaft im Cache gespeichert (kein wiederholter Netzwerk-Zugriff).
+   Nominatim-Nutzungsregeln: max. 1 Anfrage/Sekunde, daher Warteschlange.
+--------------------------------------------------------------- */
+function resolvedLabel(item){
+  const base = (item.placeKey && geocodeCache[item.placeKey]) ? geocodeCache[item.placeKey] : item.label;
+  return applyAddressLabelOverride(base);
+}
+function enqueueGeocode(item){
+  if(!item.placeKey || item.lat==null || item.lng==null) return;
+  if(geocodeCache[item.placeKey]) return;
+  if(geocodeQueue.some(q=>q.placeKey===item.placeKey)) return;
+  geocodeQueue.push({ placeKey:item.placeKey, lat:item.lat, lng:item.lng });
+  processGeocodeQueue();
+}
+function formatNominatimAddress(a){
+  if(!a) return null;
+  const street = a.road || a.pedestrian || a.footway || '';
+  const houseNr = a.house_number || '';
+  const plz = a.postcode || '';
+  const city = a.city || a.town || a.village || a.suburb || a.municipality || '';
+  const line1 = [street, houseNr].filter(Boolean).join(' ');
+  const line2 = [plz, city].filter(Boolean).join(' ');
+  const full = [line1, line2].filter(Boolean).join(', ');
+  return full || null;
+}
+async function processGeocodeQueue(){
+  if(geocodeInFlight) return;
+  geocodeInFlight = true;
+  while(geocodeQueue.length){
+    const job = geocodeQueue.shift();
+    updateGeocodeStatus();
+    try{
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${job.lat}&lon=${job.lng}&addressdetails=1&zoom=18&accept-language=de`;
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+      if(res.ok){
+        const data = await res.json();
+        const label = formatNominatimAddress(data.address) || data.display_name;
+        if(label){
+          geocodeCache[job.placeKey] = label;
+          saveAll();
+          render();
+        }
+      }
+    }catch(err){
+      console.warn('Geocoding fehlgeschlagen für', job.placeKey, err);
+    }
+    // Nominatim-Nutzungsrichtlinie: max. 1 Anfrage/Sekunde
+    await new Promise(r=>setTimeout(r, 1100));
+  }
+  geocodeInFlight = false;
+  updateGeocodeStatus();
+}
+function updateGeocodeStatus(){
+  const el = document.getElementById('geocodeStatus');
+  if(!el) return;
+  if(geocodeQueue.length || geocodeInFlight){
+    el.textContent = `Adressen werden über OpenStreetMap nachgeschlagen… (noch ${geocodeQueue.length} in der Warteschlange)`;
+    el.style.display = '';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+/* ---------------------------------------------------------------
+   Tagesdaten ableiten
+--------------------------------------------------------------- */
+function dateAtLocalHour(dateStr, hour, minute){
+  const [y,m,d] = dateStr.split('-').map(Number);
+  return new Date(y, m-1, d, hour, minute||0, 0, 0);
+}
+const QUARTER_MS = 15*60*1000;
+const MIN_ARBEITSENDE = '16:30'; // A-Ende der letzten Tageszeile darf nie früher sein
+function roundToNearest15(date){
+  return new Date(Math.round(date.getTime()/QUARTER_MS)*QUARTER_MS);
+}
+function ceilTo15(date){
+  return new Date(Math.ceil(date.getTime()/QUARTER_MS)*QUARTER_MS);
+}
+
+function timeLocal(d){
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+
+// Google liefert manchmal zwei sich zeitlich ECHT überlappende (nicht nur
+// berührende) Besuchssegmente an unterschiedlichen Orten — vermutlich
+// alternative, unsichere Standortschätzungen für dieselbe Zeitspanne.
+// Wir behalten dann nur den Ort mit der höheren Standort-Konfidenz
+// (topCandidate-Wahrscheinlichkeit) und verwerfen den unsicheren Alternativ-Eintrag,
+// statt beide chronologisch zu verarbeiten (was sonst zu einer künstlich
+// auf wenige Minuten zusammengestauchten Zeile führen würde).
+function resolveOverlaps(visitList){
+  const items = visitList.map(v=>({
+    v,
+    start: new Date(v.start).getTime(),
+    end: new Date(v.end).getTime(),
+    score: (typeof v.probability === 'number') ? v.probability : 0.5
+  }));
+  items.sort((a,b)=> b.score - a.score || (b.end-b.start) - (a.end-a.start));
+  const accepted = [];
+  for(const item of items){
+    const overlapsExisting = accepted.some(a => item.start < a.end && item.end > a.start);
+    if(!overlapsExisting) accepted.push(item);
+  }
+  accepted.sort((a,b)=> a.start - b.start);
+  return accepted.map(a=>a.v);
+}
+
+function getDayRows(dateStr){
+  const holiday = isHoliday(dateStr);
+  const ov = overrides[dateStr] || {};
+
+  if(ov.urlaub){
+    return [{ dateStr, rowKey:'vacation', beginn:'Urlaubstag', ende:'', pausen:'', ort:'', meta:null, type:'vacation' }];
+  }
+  if(holiday){
+    return [{ dateStr, rowKey:'holiday', beginn:'Feiertag', ende:'', pausen:'', ort:'', meta:null, type:'holiday', holidayName:holiday }];
+  }
+
+  const windowStart = dateAtLocalHour(dateStr, 7);
+  const cutoffThreshold = dateAtLocalHour(dateStr, 16, 30);
+  // Kein festes oberes Zeitfenster mehr: Adressen werden ab 07:00 erfasst.
+  // Der Bericht endet aber, sobald ab 16:30 ein als „Zuhause“ (Andergasse 10)
+  // erkannter Aufenthalt im Standortverlauf erscheint (auch wenn dieser vor
+  // 16:30 begonnen hat, aber bis 16:30 oder länger andauert) — alles danach
+  // (z.B. private Wege/Reisen am Abend) wird nicht mehr in den Bericht übernommen.
+  const allDayVisitsRaw = visits.filter(v => v.dateStr === dateStr);
+  let dayCutoff = null;
+  for(const v of allDayVisitsRaw.slice().sort((a,b)=> new Date(a.start)-new Date(b.start))){
+    if(isHomeType(v.semanticType) && new Date(v.end) >= cutoffThreshold){
+      dayCutoff = new Date(v.start);
+      break;
+    }
+  }
+
+  let dayVisits = allDayVisitsRaw
+    .filter(v => !isExcludedVisit(v))
+    .filter(v => new Date(v.end) > windowStart)
+    .filter(v => dayCutoff === null || new Date(v.start) < dayCutoff)
+    .slice()
+    .sort((a,b)=> new Date(a.start) - new Date(b.start));
+
+  dayVisits = resolveOverlaps(dayVisits);
+
+  // Chronologisch durchgehen und NUR unmittelbar aufeinanderfolgende Besuche
+  // am selben Ort zusammenfassen. Liegt dazwischen ein Besuch an einem
+  // ANDEREN Ort, bleibt es eine eigene Zeile — so entstehen z.B. "Werkstatt
+  // vormittags" und "Werkstatt nachmittags" als getrennte Zeilen, statt einen
+  // einzigen Block zu bilden, der sich mit dem Zwischenstopp überlappt.
+  const groupList = [];
+  for(const v of dayVisits){
+    const key = v.placeKey || normalizeAddress(v.address);
+    const clampedStart = new Date(Math.max(new Date(v.start).getTime(), windowStart.getTime()));
+    const clampedEnd   = new Date(v.end);
+    const last = groupList[groupList.length-1];
+    if(last && last.key === key){
+      if(clampedEnd > last.maxEnd) last.maxEnd = clampedEnd;
+    }else{
+      groupList.push({ key, minStart: clampedStart, maxEnd: clampedEnd, rep: v });
+    }
+  }
+
+  // Chronologische Konsistenz erzwingen: eine Zeile darf nie über den
+  // Beginn der nächsten Zeile hinausreichen (keine überlappenden Zeiten).
+  for(let i=0; i<groupList.length-1; i++){
+    if(groupList[i].maxEnd > groupList[i+1].minStart){
+      groupList[i].maxEnd = groupList[i+1].minStart;
+    }
+  }
+
+  if(!groupList.length){
+    return [{ dateStr, rowKey:'empty', beginn: ov.beginn||'', ende: ov.ende||'', pausen: ov.pausen||'', ort: ov.ort||'', meta:null, type:'work' }];
+  }
+
+  return groupList.map((g,idx)=>{
+    const rowKey = `${g.key}::${idx}`;
+    const ovKey = `${dateStr}|${rowKey}`;
+    const rov = rowOverrides[ovKey] || {};
+    const item = { label: g.rep.address, placeKey: g.rep.placeKey, semanticType: g.rep.semanticType, lat: g.rep.lat, lng: g.rep.lng, hasAddressText: g.rep.hasAddressText };
+    const label = resolvedLabel(item);
+
+    // Nur die erste Zeile zeigt A-Beginn (immer 07:00), nur die letzte Zeile
+    // zeigt A-Ende (aufgerundet, mindestens 16:30 bzw. Zeit vor Rückkehr zur
+    // Andergasse). Alle Zeilen dazwischen bleiben bei A-Beginn/A-Ende leer.
+    const isFirstRow = idx === 0;
+    const isLastRow = idx === groupList.length - 1;
+    let defaultBeginn = '';
+    let defaultEnde = '';
+    if(isFirstRow) defaultBeginn = '07:00';
+    if(isLastRow){
+      defaultEnde = timeLocal(ceilTo15(g.maxEnd));
+      if(defaultEnde < MIN_ARBEITSENDE) defaultEnde = MIN_ARBEITSENDE;
+    }
+    // Mittagspause nur in der ersten Zeile des Tages
+    const defaultPausen = isFirstRow ? '12-12:30' : '';
+
+    return {
+      dateStr, rowKey,
+      beginn: rov.beginn !== undefined ? rov.beginn : defaultBeginn,
+      ende: rov.ende !== undefined ? rov.ende : defaultEnde,
+      pausen: rov.pausen !== undefined ? rov.pausen : defaultPausen,
+      ort: rov.ort !== undefined ? rov.ort : label,
+      meta: item,
+      type: 'work'
+    };
+  });
+}
+
+/* ---------------------------------------------------------------
+   UI: Wochen-Navigation & Toggle
+--------------------------------------------------------------- */
+function currentWeekDates(){
+  const monday = mondayOfIsoWeek(settings.kw, settings.year);
+  const days = [];
+  for(let i=0;i<settings.weekDays;i++) days.push(addDays(monday,i));
+  return days;
+}
+
+function updateKwDisplay(){
+  const days = currentWeekDates();
+  document.getElementById('kwDisplay').innerHTML =
+    `KW ${String(settings.kw).padStart(2,'0')} / ${settings.year}` +
+    `<span class="kw-range">${fmtDE(days[0]).split(', ')[1]} &ndash; ${fmtDE(days[days.length-1]).split(', ')[1]}</span>`;
+}
+
+function shiftWeek(delta){
+  let monday = mondayOfIsoWeek(settings.kw, settings.year);
+  monday = addDays(monday, delta*7);
+  const iw = isoWeek(monday);
+  settings.kw = iw.week; settings.year = iw.year;
+  saveAll();
+  render();
+}
+
+/* ---------------------------------------------------------------
+   Render
+--------------------------------------------------------------- */
+function semanticHint(st){
+  if(st==='INFERRED_WORK') return 'vermutl. Arbeitsplatz';
+  if(st==='ALIASED_LOCATION') return 'gespeicherter Ort';
+  if(st==='SEARCHED_ADDRESS') return 'gesuchte Adresse';
+  return '';
+}
+function mapLink(lat,lng){
+  return `https://www.google.com/maps?q=${lat},${lng}`;
+}
+
+function weekRows(){
+  const days = currentWeekDates();
+  const rows = [];
+  for(const d of days){
+    const dateStr = fmtISO(d);
+    const dayRows = getDayRows(dateStr);
+    for(const r of dayRows) rows.push({...r, dateLabel: fmtDE(d)});
+  }
+  return rows;
+}
+
+function render(){
+  document.getElementById('nameField').value = settings.name;
+  document.getElementById('vonField').value = fullWeekRangeLabel();
+  document.getElementById('seiteField').value = settings.seite;
+  document.getElementById('btnMoFr').classList.toggle('active', settings.weekDays===5);
+  document.getElementById('btnMoDo').classList.toggle('active', settings.weekDays===4);
+  updateKwDisplay();
+
+  const days = currentWeekDates();
+  const tbody = document.getElementById('previewBody');
+  tbody.innerHTML = '';
+  let filteredCount = 0;
+
+  for(const d of days){
+    const dateStr = fmtISO(d);
+    const dayRows = getDayRows(dateStr);
+    const dayVisitsRaw = visits.filter(v=>v.dateStr===dateStr);
+    filteredCount += dayVisitsRaw.filter(v => isExcludedVisit(v)).length;
+    const ov = overrides[dateStr] || {};
+
+    dayRows.forEach((row, idx) => {
+      const tr = document.createElement('tr');
+      if(row.type==='holiday') tr.classList.add('holiday');
+      if(row.type==='vacation') tr.classList.add('vacation');
+
+      let ortCell = '';
+      if(row.type==='work' && row.meta){
+        const item = row.meta;
+        const hint = semanticHint(item.semanticType);
+        const mapHtml = (item.lat!=null && item.lng!=null)
+          ? `<a href="${mapLink(item.lat,item.lng)}" target="_blank" rel="noopener" style="color:var(--cyan);">Karte</a>`
+          : '';
+        const pending = !item.hasAddressText && item.placeKey && !geocodeCache[item.placeKey];
+        if(pending) enqueueGeocode(item);
+        const chip = `<span class="ort-chip">
+            <span>${escapeHtml(resolvedLabel(item))}${pending?` <span class="hint">(wird nachgeschlagen…)</span>`:''}${hint?` <span class="hint">(${hint})</span>`:''}</span>
+            ${mapHtml}
+            ${item.placeKey ? `<button type="button" class="small excludeBtn" data-key="${escapeHtml(item.placeKey)}" data-label="${escapeHtml(resolvedLabel(item))}">Ausschließen</button>` : ''}
+          </span>`;
+        ortCell = `<div class="ort-chips">${chip}</div>${rowEditableCell(dateStr,row.rowKey,'ort',row.ort)}`;
+      } else if(row.type==='work'){
+        ortCell = rowEditableCell(dateStr,row.rowKey,'ort',row.ort);
+      }
+
+      const isWork = row.type==='work';
+      tr.innerHTML = `
+        <td>${idx===0 ? fmtDE(d) : `<span style="color:#4d668f;">${fmtDE(d)}</span>`}</td>
+        <td class="narrow">${isWork ? rowEditableCell(dateStr,row.rowKey,'beginn',row.beginn) : `<span class="tag">${row.beginn}</span>`}</td>
+        <td class="narrow">${isWork ? rowEditableCell(dateStr,row.rowKey,'ende',row.ende) : ''}</td>
+        <td class="narrow">${isWork ? rowEditableCell(dateStr,row.rowKey,'pausen',row.pausen) : ''}</td>
+        <td>${ortCell}</td>
+        <td class="check">${idx===0 ? `<input type="checkbox" data-date="${dateStr}" class="urlaubCheck" ${ov.urlaub?'checked':''}>` : ''}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  const note = document.getElementById('filteredNote');
+  note.textContent = filteredCount>0
+    ? `${filteredCount} Standort(e) in dieser Woche automatisch ausgeblendet (außerhalb 07–17 Uhr, Zuhause oder manuell ausgeschlossen).`
+    : '';
+
+  tbody.querySelectorAll('input[data-field]').forEach(inp=>{
+    inp.addEventListener('change', e=>{
+      const date = e.target.dataset.date, rowKey = e.target.dataset.rowkey, field = e.target.dataset.field;
+      const ovKey = `${date}|${rowKey}`;
+      rowOverrides[ovKey] = rowOverrides[ovKey] || {};
+      rowOverrides[ovKey][field] = e.target.value;
+      saveAll();
+    });
+  });
+  tbody.querySelectorAll('.urlaubCheck').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const date = e.target.dataset.date;
+      overrides[date] = overrides[date] || {};
+      overrides[date].urlaub = e.target.checked;
+      saveAll();
+      render();
+    });
+  });
+  tbody.querySelectorAll('.excludeBtn').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const key = e.target.dataset.key, label = e.target.dataset.label;
+      excludePlace(key, label);
+      render();
+      renderExcludedList();
+    });
+  });
+
+  renderExcludedList();
+}
+function rowEditableCell(dateStr, rowKey, field, value){
+  return `<input type="text" data-date="${dateStr}" data-rowkey="${escapeHtml(rowKey||'')}" data-field="${field}" value="${(value||'').replace(/"/g,'&quot;')}">`;
+}
+function escapeHtml(s){
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderExcludedList(){
+  const container = document.getElementById('excludedList');
+  const keys = Object.keys(excludedPlaces);
+  if(!keys.length){
+    container.innerHTML = '<span style="color:#6f8bb8;">Keine manuell ausgeschlossenen Orte. (Zuhause-Aufenthalte werden zusätzlich immer automatisch ausgeblendet.)</span>';
+    return;
+  }
+  container.innerHTML = keys.map(k=>{
+    const item = excludedPlaces[k];
+    return `<span class="chip">${escapeHtml(item.label)} <button type="button" class="small reincludeBtn" data-key="${escapeHtml(k)}">Wieder einblenden</button></span>`;
+  }).join('');
+  container.querySelectorAll('.reincludeBtn').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      reincludePlace(e.target.dataset.key);
+      render();
+    });
+  });
+}
+
+/* ---------------------------------------------------------------
+   Datei-Import Events
+--------------------------------------------------------------- */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('click', ()=> fileInput.click());
+dropzone.addEventListener('dragover', e=>{ e.preventDefault(); dropzone.classList.add('drag'); });
+dropzone.addEventListener('dragleave', ()=> dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleFile(e.target.files[0]);
+});
+function handleFile(file){
+  const status = document.getElementById('importStatus');
+  if(!file.size){
+    status.textContent = `Fehler: "${file.name}" ist 0 Byte groß (leer). Bitte den Export erneut erstellen und die neue Datei hochladen.`;
+    return;
+  }
+  status.textContent = 'Lese Datei…';
+  const reader = new FileReader();
+  reader.onload = e=>{
+    try{
+      const json = JSON.parse(e.target.result);
+      const newVisits = extractVisitsFromJSON(json);
+      if(!newVisits.length){
+        status.textContent = 'Datei gelesen, aber keine verwertbaren Zeitachsen-Einträge gefunden. Format prüfen.';
+        return;
+      }
+      const added = importVisits(newVisits);
+      status.textContent = `Import abgeschlossen: ${newVisits.length} Einträge gelesen, ${added} neu übernommen (Duplikate übersprungen).`;
+      render();
+    }catch(err){
+      status.textContent = 'Fehler beim Lesen der Datei: ' + err.message;
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* ---------------------------------------------------------------
+   Settings Events
+--------------------------------------------------------------- */
+document.getElementById('nameField').addEventListener('input', e=>{ settings.name=e.target.value; saveAll(); });
+// "von" wird automatisch aus der Kalenderwoche berechnet (siehe fullWeekRangeLabel) — kein Event-Listener nötig
+document.getElementById('seiteField').addEventListener('input', e=>{ settings.seite=e.target.value; saveAll(); });
+document.getElementById('btnMoFr').addEventListener('click', ()=>{ settings.weekDays=5; saveAll(); render(); });
+document.getElementById('btnMoDo').addEventListener('click', ()=>{ settings.weekDays=4; saveAll(); render(); });
+document.getElementById('prevWeek').addEventListener('click', ()=> shiftWeek(-1));
+document.getElementById('nextWeek').addEventListener('click', ()=> shiftWeek(1));
+
+/* ---------------------------------------------------------------
+   PDF-Export (jsPDF + autoTable) — repliziert das Papier-Formular
+--------------------------------------------------------------- */
+document.getElementById('exportBtn').addEventListener('click', exportPDF);
+
+document.getElementById('resetWeekBtn').addEventListener('click', () => {
+  const monday = mondayOfIsoWeek(settings.kw, settings.year);
+  const weekDates = [];
+  for(let i=0;i<7;i++) weekDates.push(fmtISO(addDays(monday,i))); // volle Mo–So-Woche, unabhängig von Mo-Fr/Mo-Do
+  if(!confirm(`Alle manuellen Bearbeitungen (Zeiten, Orte, Pausen, Urlaub) für KW ${String(settings.kw).padStart(2,'0')}/${settings.year} zurücksetzen? Ausgeschlossene Orte und der Adress-Cache bleiben erhalten.`)) return;
+  for(const d of weekDates){
+    delete overrides[d];
+    for(const key of Object.keys(rowOverrides)){
+      if(key.startsWith(d + '|')) delete rowOverrides[key];
+    }
+  }
+  saveAll();
+  render();
+});
+
+function exportPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'landscape', unit:'mm', format:'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();   // 297mm
+  const marginX = 10;
+  const usableWidth = pageWidth - marginX*2;
+  const tableStartY = 45; // vermessen aus Original-Formular (~21.5% der Seitenhöhe)
+  const startSeite = parseInt(settings.seite,10) || 1;
+  let pageCounter = 0; // wird in didDrawPage hochgezählt — zählt ALLE tatsächlich erzeugten Seiten mit
+
+  function drawHeader(pageNumber){
+    // --- Titel links ---
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(16);
+    doc.text('Wochenbericht:', marginX, 16);
+    doc.setLineWidth(0.4);
+    doc.line(marginX, 17.5, marginX + doc.getTextWidth('Wochenbericht:'), 17.5);
+
+    // --- Name (rechts oben) — Positionen aus Original-Formular vermessen ---
+    const nameLabelX = pageWidth * 0.680;   // ~202mm
+    const nameLineX1 = pageWidth * 0.760;   // ~225.7mm
+    const nameLineX2 = pageWidth - marginX; // rechter Rand, ~287mm
+
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.text('Name:', nameLabelX, 16);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(11);
+    doc.text(settings.name || '', nameLineX1 + 2, 17.8);
+    doc.setLineWidth(0.35);
+    doc.line(nameLineX1, 19, nameLineX2, 19);
+
+    // --- Seite (rechts, unterhalb Name) — pro Seite automatisch hochgezählt ---
+    const seiteLabelX = pageWidth * 0.830;  // ~246.5mm
+    const seiteLineX1 = pageWidth * 0.860;  // ~255.4mm
+    const seiteLineX2 = pageWidth - marginX;
+
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    doc.text('Seite:', seiteLabelX, 26);
+    doc.text(String(startSeite + pageNumber - 1), seiteLineX1 + 3, 28);
+    doc.setLineWidth(0.3);
+    doc.line(seiteLineX1, 29, seiteLineX2, 29);
+
+    // --- KW / von (links) ---
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(12);
+    doc.text('KW:', marginX, 27);
+    doc.setFont('helvetica','normal');
+    doc.text(String(settings.kw).padStart(2,'0'), marginX + 10, 27);
+    doc.line(marginX + 9, 28, marginX + 26, 28);
+
+    doc.setFont('helvetica','bold');
+    doc.text('von', marginX + 32, 27);
+    doc.setFont('helvetica','normal');
+    doc.text(fullWeekRangeLabel(), marginX + 42, 27);
+    doc.line(marginX + 41, 28, pageWidth * 0.62, 28);
+  }
+
+  // Spaltenbreiten — Pausen-Spalte verbreitert, damit "Pausen" / "12-12:30" einzeilig bleibt
+  const colRatios = [0.090, 0.080, 0.065, 0.085, 0.260, 0.420];
+  const colWidths = colRatios.map(r=> usableWidth * r);
+  const cellPad = 1.8;
+  const bodyFontSize = 9;
+
+  // Text auf eine Zeile kürzen (mit „…“), damit JEDE Zeile garantiert dieselbe
+  // Höhe hat — sonst könnte autoTable bei einer zu langen Adresse mitten in
+  // einem 17-Zeilen-Block eine ungeplante Extra-Seite einschieben, wodurch
+  // Folgeseiten nicht mehr exakt 17 Datenzeilen hätten.
+  function truncateToFit(text, maxWidthMm){
+    if(!text) return text;
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(bodyFontSize);
+    if(doc.getTextWidth(text) <= maxWidthMm) return text;
+    let t = text;
+    while(t.length > 1 && doc.getTextWidth(t + '…') > maxWidthMm){
+      t = t.slice(0, -1);
+    }
+    return t + '…';
+  }
+
+  // --- Tabelle: eine Zeile pro Standort ---
+  let rows = weekRows().map(r=>{
+    const cells = [
+      r.dateLabel,
+      r.beginn || '',
+      r.ende || '',
+      r.pausen || '',
+      r.ort || '',
+      ''
+    ];
+    return cells.map((val, colIdx) => truncateToFit(val, colWidths[colIdx] - cellPad*2 - 0.5));
+  });
+
+  // Seiten SELBST aufteilen (statt autoTable automatisch umbrechen zu lassen):
+  // autoTable's eigener Seitenumbruch richtet sich nach der tatsächlichen
+  // Inhaltshöhe und stimmte nicht mit der 17-Zeilen-Annahme überein — das
+  // hat zu abgeschnittenen/verdoppelten Zeilen am Seitenwechsel geführt.
+  // Jetzt bekommt jede Seite einen eigenen, in sich abgeschlossenen autoTable-Aufruf.
+  const chunks = [];
+  for(let i=0; i<rows.length; i+=TOTAL_ROWS_TARGET){
+    chunks.push(rows.slice(i, i+TOTAL_ROWS_TARGET));
+  }
+  if(!chunks.length) chunks.push([]);
+  // JEDE Seite (auch die letzte) auf exakt TOTAL_ROWS_TARGET Zeilen auffüllen
+  chunks.forEach(c => {
+    while(c.length < TOTAL_ROWS_TARGET) c.push(['', '', '', '', '', '']);
+  });
+
+  chunks.forEach((chunk, idx) => {
+    if(idx > 0) doc.addPage();
+    doc.autoTable({
+      startY: tableStartY,
+      margin: { left: marginX, right: marginX, top: tableStartY, bottom: 10 },
+      head: [['Datum','A-Beginn','A-Ende','Pausen','Ort','Arbeitstätigkeit']],
+      body: chunk,
+      theme: 'grid',
+      rowPageBreak: 'avoid',
+      didDrawPage: () => { pageCounter++; drawHeader(pageCounter); },
+      styles:{
+        font:'helvetica', fontSize:9, textColor:[10,10,10],
+        lineColor:[0,0,0], lineWidth:0.25, cellPadding:1.8, valign:'top',
+        overflow:'ellipsize', minCellHeight:6.5
+      },
+      headStyles:{
+        fillColor:[255,255,255], textColor:[0,0,0], fontStyle:'bold',
+        lineColor:[0,0,0], lineWidth:0.3, fontSize:9.5,
+        cellPadding:{top:2, right:1.8, bottom:2, left:1.8}
+      },
+      columnStyles:{
+        0:{cellWidth:colWidths[0]},
+        1:{cellWidth:colWidths[1]},
+        2:{cellWidth:colWidths[2]},
+        3:{cellWidth:colWidths[3], halign:'center'},
+        4:{cellWidth:colWidths[4]},
+        5:{cellWidth:colWidths[5]},
+      }
+    });
+  });
+
+  const fname = `Wochenbericht_KW${String(settings.kw).padStart(2,'0')}_${settings.year}.pdf`;
+  doc.save(fname);
+}
+
+/* ---------------------------------------------------------------
+   Init
+--------------------------------------------------------------- */
+render();
+
+/* ---------------------------------------------------------------
+   Service Worker (Offline-Faehigkeit / Installierbarkeit als App)
+--------------------------------------------------------------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+
+</script>
+</body>
+</html>
